@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Meridian Atlas — Eastern / Western Body Mapping</title>
+<meta name="description" content="Educational body-mapping explorer bridging TCM meridian theory and Applied Kinesiology muscle-organ reflexes.">
+<meta name="theme-color" content="#121824">
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiTWVyaWRpYW4gQXRsYXMiLCJzaG9ydF9uYW1lIjoiTWVyaWRpYW4gQXRsYXMiLCJzdGFydF91cmwiOiIuIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiIzEyMTgyNCIsInRoZW1lX2NvbG9yIjoiIzEyMTgyNCJ9">
+<style>
+  :root{
+    --ink:#121824;
+    --umber:#1a2233;
+    --paper:#1e293b;
+    --paper-2:#26314a;
+    --teal:#14b8a6;
+    --amber:#f59e0b;
+    --red:#ef4444;
+    --blue:#3b82f6;
+    --parchment:#EDE6D6;
+    --muted:#8b93a7;
+    --line:#2c3852;
+    --serif: 'Iowan Old Style','Palatino Linotype','Book Antiqua',Georgia,serif;
+    --sans: ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono: ui-monospace,'SF Mono',SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{ height:100%; margin:0; overflow:hidden; background:var(--ink); color:var(--parchment); font-family:var(--sans); }
+  #app{
+    position:fixed; inset:0; height:100svh; width:100svw;
+    display:flex; flex-direction:column;
+    background: radial-gradient(ellipse at 50% -10%, rgba(20,184,166,0.10), transparent 60%), var(--ink);
+  }
+
+  header{
+    flex:0 0 auto; display:flex; flex-direction:column; gap:8px;
+    padding:calc(env(safe-area-inset-top) + 10px) 16px 10px; border-bottom:1px solid var(--line);
+  }
+  .header-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .brand{ font-family:var(--serif); letter-spacing:0.04em; font-size:17px; color:var(--parchment); }
+  .brand em{ font-style:normal; background:linear-gradient(90deg,var(--teal),var(--amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .brand small{ display:block; font-family:var(--mono); font-size:9px; letter-spacing:0.18em; color:var(--muted); text-transform:uppercase; margin-top:2px; }
+
+  .toggles{ display:flex; gap:6px; flex-wrap:wrap; }
+  .dial{ display:flex; gap:2px; background:var(--umber); border:1px solid var(--line); border-radius:999px; padding:3px; }
+  .dial button{
+    appearance:none; border:none; background:transparent; color:var(--muted);
+    font-family:var(--mono); font-size:9px; letter-spacing:0.08em; text-transform:uppercase;
+    padding:6px 10px; border-radius:999px; transition:all 150ms ease;
+  }
+  .dial button.active{ background:linear-gradient(135deg,var(--teal),var(--blue)); color:#08141a; font-weight:700; }
+  .dial.gender button.active{ background:linear-gradient(135deg,var(--amber),var(--red)); color:#1a0a05; }
+
+  #canvasWrap{ flex:1 1 58%; position:relative; min-height:0; display:flex; align-items:center; justify-content:center; padding:2px 24px; }
+  #canvasWrap svg{ height:100%; max-width:100%; overflow:visible; }
+
+  .body-map-svg .interactive-zone path,
+  .body-map-svg .interactive-zone ellipse,
+  .body-map-svg .interactive-zone circle{ transition: all 0.25s cubic-bezier(0.4,0,0.2,1); }
+  .body-map-svg .interactive-zone:hover .zone-halo{ opacity:0.75 !important; filter:drop-shadow(0 0 12px rgba(20,184,166,0.6)); }
+  .body-map-svg .interactive-zone.selected .zone-halo{ opacity:0.95 !important; stroke:#ffffff; stroke-width:2px; filter:drop-shadow(0 0 18px var(--red)); }
+  .acpoint{ cursor:crosshair; transition:transform 0.2s ease; transform-box:fill-box; transform-origin:center; }
+  .interactive-zone:hover .acpoint{ transform:scale(1.4); }
+  .interactive-zone.selected .acpoint{ transform:scale(1.5); }
+
+  .body-view{ display:none; }
+  .body-view.active{ display:block; }
+
+  .hint{ position:absolute; bottom:6px; left:0; right:0; text-align:center; font-family:var(--mono); font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--muted); pointer-events:none; }
+
+  #sheet{
+    flex:0 0 auto; background:var(--umber); border-top:1px solid var(--line); border-radius:18px 18px 0 0;
+    box-shadow:0 -18px 40px rgba(0,0,0,0.35); display:flex; flex-direction:column; height:40svh;
+    transition:height 260ms cubic-bezier(.32,.72,0,1); position:relative; overflow:hidden;
+  }
+  #sheet.expanded{ height:82svh; }
+  #sheet.empty{ height:16svh; }
+  .handle-row{ flex:0 0 auto; display:flex; flex-direction:column; align-items:center; padding-top:9px; cursor:pointer; }
+  .handle{ width:38px; height:4px; border-radius:3px; background:var(--line); }
+  .sheet-empty-state{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; padding:0 30px; text-align:center; }
+  .sheet-empty-state .glyph{ font-family:var(--serif); font-size:26px; background:linear-gradient(90deg,var(--teal),var(--amber)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sheet-empty-state p{ margin:0; font-size:12.5px; color:var(--muted); line-height:1.5; }
+
+  .sheet-header{ flex:0 0 auto; padding:6px 18px 0; display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .region-name{ font-family:var(--serif); font-size:18px; color:var(--parchment); margin:0; }
+  .region-sub{ font-family:var(--mono); font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--teal); margin:2px 0 10px; }
+  .back-btn{ flex:0 0 auto; appearance:none; border:1px solid var(--line); background:var(--paper); color:var(--parchment); font-family:var(--mono); font-size:9px; letter-spacing:0.06em; text-transform:uppercase; padding:8px 10px; border-radius:8px; margin-top:2px; }
+  .back-btn:active{ background:var(--paper-2); }
+
+  .tabs{ flex:0 0 auto; display:flex; gap:4px; padding:0 18px 10px; border-bottom:1px solid var(--line); overflow-x:auto; }
+  .tab{ appearance:none; border:none; background:transparent; color:var(--muted); flex:0 0 auto; font-family:var(--mono); font-size:10px; letter-spacing:0.09em; text-transform:uppercase; padding:7px 12px; border-radius:8px; transition:all 150ms ease; }
+  .tab.active{ background:var(--paper); color:var(--parchment); }
+
+  .sheet-body{ flex:1; overflow-y:auto; padding:14px 18px calc(env(safe-area-inset-bottom) + 90px); -webkit-overflow-scrolling:touch; }
+  .panel{ display:none; animation:fadein 200ms ease; }
+  .panel.active{ display:block; }
+  @keyframes fadein{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+
+  .synth-text{ font-size:14px; line-height:1.65; color:var(--parchment); margin:0 0 16px; }
+  .split{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+  .col{ background:var(--paper); border-radius:12px; padding:12px; border:1px solid var(--line); }
+  .col h4{ margin:0 0 8px; font-family:var(--mono); font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; }
+  .col.east h4{ color:var(--amber); }
+  .col.west h4{ color:var(--blue); }
+  .kv{ margin-bottom:8px; }
+  .kv .k{ font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; }
+  .kv .v{ font-size:13px; color:var(--parchment); line-height:1.4; margin-top:1px; }
+  .chip-row{ display:flex; flex-wrap:wrap; gap:5px; margin-top:2px; }
+  .chip{ font-family:var(--mono); font-size:10.5px; background:var(--paper-2); border:1px solid var(--line); border-radius:6px; padding:3px 7px; color:var(--parchment); }
+  .col.east .chip{ border-color:var(--amber); }
+  .col.west .chip{ border-color:var(--blue); }
+
+  .field-detail{ padding:2px 0 16px; }
+  .field-detail h4{ margin:0 0 10px; font-family:var(--mono); font-size:9.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--amber); }
+  .field-detail.west h4{ color:var(--blue); }
+  .field-detail .kv{ background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+
+  .remedy-card{ background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:16px; }
+  .remedy-card h4{ margin:0 0 4px; font-family:var(--serif); font-size:15px; color:var(--parchment); }
+  .remedy-modality{ font-family:var(--mono); font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px; }
+  .video-frame{ position:relative; border-radius:10px; overflow:hidden; aspect-ratio:16/10; background:#000; margin-bottom:12px; border:1px solid var(--line); }
+  .video-frame img{ width:100%; height:100%; object-fit:cover; opacity:0.75; }
+  .video-frame .play{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:linear-gradient(0deg, rgba(0,0,0,0.55), rgba(0,0,0,0.1)); }
+  .play-btn{ width:44px; height:44px; border-radius:50%; background:rgba(237,230,214,0.9); display:flex; align-items:center; justify-content:center; color:#121824; }
+  .loop-badge{ position:absolute; top:8px; right:8px; font-family:var(--mono); font-size:8.5px; background:rgba(18,24,36,0.7); padding:3px 6px; border-radius:5px; letter-spacing:0.08em; color:var(--parchment); }
+  .offline-note{ position:absolute; bottom:8px; left:8px; font-family:var(--mono); font-size:8px; color:var(--muted); display:none; }
+  .instructions{ font-size:13.5px; line-height:1.7; color:var(--parchment); }
+  .instructions ol{ padding-left:18px; margin:0; }
+  .instructions li{ margin-bottom:6px; }
+
+  .flag-strip{ display:flex; align-items:center; gap:8px; background:rgba(239,68,68,0.12); border:1px solid rgba(239,68,68,0.5); border-radius:10px; padding:9px 12px; margin-bottom:14px; }
+  .flag-strip button{ appearance:none; border:1px solid var(--red); background:transparent; color:#fca5a5; font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em; text-transform:uppercase; padding:6px 9px; border-radius:6px; flex:0 0 auto; }
+  .flag-strip span{ font-size:11.5px; color:#fca5a5; line-height:1.4; }
+
+  .return-row{ padding:2px 0 18px; }
+  .return-full{ width:100%; appearance:none; border:1px solid var(--teal); background:var(--paper); color:var(--teal); font-family:var(--mono); font-size:10px; letter-spacing:0.08em; text-transform:uppercase; padding:12px; border-radius:10px; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .return-full:active{ background:var(--paper-2); }
+
+  footer.compliance{ flex:0 0 auto; padding:8px 16px calc(env(safe-area-inset-bottom) + 8px); border-top:1px solid var(--line); background:var(--ink); }
+  footer.compliance p{ margin:0; font-size:9.5px; line-height:1.4; color:var(--muted); text-align:center; }
+
+  #emergency{ position:fixed; inset:0; background:var(--red); color:#fff; z-index:60; display:none; flex-direction:column; align-items:center; justify-content:center; padding:30px; text-align:center; }
+  #emergency.show{ display:flex; }
+  #emergency .glyph{ font-size:44px; margin-bottom:14px; }
+  #emergency h2{ font-family:var(--serif); font-size:22px; margin:0 0 10px; }
+  #emergency p{ font-size:14px; line-height:1.6; max-width:340px; margin:0 0 22px; }
+  #emergency button{ appearance:none; border:1.5px solid #fff; background:transparent; color:#fff; font-family:var(--mono); font-size:11px; letter-spacing:0.08em; text-transform:uppercase; padding:11px 22px; border-radius:999px; }
+
+  #gate{ position:fixed; inset:0; background:var(--ink); z-index:70; display:flex; align-items:center; justify-content:center; padding:26px; }
+  #gate .card{ max-width:400px; width:100%; background:var(--umber); border:1px solid var(--line); border-radius:16px; padding:26px 22px; }
+  #gate .glyph{ font-family:var(--serif); font-size:30px; background:linear-gradient(90deg,var(--teal),var(--amber)); -webkit-background-clip:text; background-clip:text; color:transparent; margin-bottom:6px; }
+  #gate h1{ font-family:var(--serif); font-size:20px; margin:0 0 12px; line-height:1.3; }
+  #gate p{ font-size:13px; line-height:1.65; color:var(--muted); margin:0 0 10px; }
+  #gate .terms-box{ background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:12px; font-size:11.5px; color:var(--muted); line-height:1.6; max-height:110px; overflow-y:auto; margin:14px 0; }
+  #gate label{ display:flex; gap:9px; align-items:flex-start; font-size:12.5px; color:var(--parchment); line-height:1.5; margin-bottom:16px; cursor:pointer; }
+  #gate input[type=checkbox]{ margin-top:2px; accent-color:var(--teal); width:16px; height:16px; flex:0 0 auto; }
+  #gate button{ width:100%; appearance:none; border:none; border-radius:999px; padding:13px; font-family:var(--mono); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; background:linear-gradient(135deg,var(--teal),var(--blue)); color:#08141a; font-weight:700; opacity:0.4; transition:opacity 200ms ease; }
+  #gate button.enabled{ opacity:1; }
+  #gate .hash{ font-family:var(--mono); font-size:9px; color:var(--muted); margin-top:10px; text-align:center; letter-spacing:0.03em; }
+
+  ::-webkit-scrollbar{ width:0; height:0; }
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <header>
+    <div class="header-row">
+      <div class="brand">Meridian <em>Atlas</em><small>East · West · Body Mapping</small></div>
+      <div class="dial" id="modeDial">
+        <button data-mode="anatomical" class="active">Form</button>
+        <button data-mode="meridian">Meridian</button>
+        <button data-mode="muscle">Muscle</button>
+      </div>
+    </div>
+    <div class="toggles">
+      <div class="dial" id="viewDial">
+        <button data-view="front" class="active">Front</button>
+        <button data-view="back">Back</button>
+      </div>
+      <div class="dial gender" id="genderDial">
+        <button data-gender="male" class="active">♂ Male</button>
+        <button data-gender="female">♀ Female</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="canvasWrap" class="mode-anatomical">
+    <svg id="bodySvg" class="body-map-svg" viewBox="0 0 800 1200" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="hint" id="hint">Tap any glowing point to explore its energetic &amp; functional profile</div>
+  </div>
+
+  <div id="sheet" class="empty">
+    <div class="handle-row" id="handleRow"><div class="handle"></div></div>
+
+    <div class="sheet-empty-state" id="emptyState">
+      <div class="glyph">☯ / ⚕</div>
+      <p>Select a point on the figure above to reveal its dual reading — meridian flow on one side, muscle-organ reflex on the other.</p>
+    </div>
+
+    <div id="filledState" style="display:none; flex:1; min-height:0; display:flex; flex-direction:column;">
+      <div class="sheet-header">
+        <div>
+          <p class="region-name" id="regionName">—</p>
+          <p class="region-sub" id="regionSub">—</p>
+        </div>
+        <button class="back-btn" id="backBtnTop">← Body Map</button>
+      </div>
+      <div class="tabs" id="tabs">
+        <button class="tab active" data-tab="synthesis">Synthesis</button>
+        <button class="tab" data-tab="tcm">TCM</button>
+        <button class="tab" data-tab="ak">AK</button>
+        <button class="tab" data-tab="remedy">Remedy</button>
+      </div>
+      <div class="sheet-body" id="sheetBody">
+        <div class="panel active" id="panel-synthesis"></div>
+        <div class="panel" id="panel-tcm"></div>
+        <div class="panel" id="panel-ak"></div>
+        <div class="panel" id="panel-remedy"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="compliance">
+    <p>Educational Well-being Explorer — maps non-clinical energetic &amp; functional body relationships. Not a medical diagnostic utility.</p>
+  </footer>
+</div>
+
+<div id="emergency">
+  <div class="glyph">⚠</div>
+  <h2>Seek Emergency Medical Consultation</h2>
+  <p>The symptom you flagged (crushing / systemic pain) falls outside educational body-mapping. Please contact local emergency services or a qualified physician immediately.</p>
+  <button onclick="document.getElementById('emergency').classList.remove('show')">I Understand</button>
+</div>
+
+<div id="gate">
+  <div class="card">
+    <div class="glyph">◈</div>
+    <h1>Before you explore the Atlas</h1>
+    <p>This app overlays two educational frameworks — Traditional Chinese Medicine meridian theory and Applied Kinesiology muscle-organ reflexes — onto an interactive body map.</p>
+    <div class="terms-box">
+      This software is provided strictly for educational self-discovery, general wellness exercises, and body-awareness enhancement. It does not diagnose, treat, cure, or prevent any disease, and is not a substitute for professional medical advice. Content reflects traditional and complementary frameworks, not clinical or peer-reviewed diagnostic standards. If you experience severe, sudden, or systemic pain — including chest pressure, crushing pain, or difficulty breathing — seek emergency medical care immediately rather than using this app.
+    </div>
+    <label>
+      <input type="checkbox" id="agreeBox">
+      I understand this tool is for educational and wellness purposes only, is not medical advice, and I will seek professional or emergency care for any real health concern.
+    </label>
+    <button id="enterBtn" disabled>Enter the Atlas</button>
+    <div class="hash" id="hashLine">verification token: pending…</div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   BODY OUTLINE PATHS — adapted from the supplied vector spec
+   (silhouette paths for male / female, front / back)
+   ========================================================= */
+const OUTLINE = {
+  male: 'M400,80 C430,80 450,110 450,150 C450,200 520,230 580,250 C640,270 660,340 640,480 C620,600 660,650 640,680 C610,680 560,550 540,550 C520,680 540,850 520,1150 C490,1160 460,1160 450,1120 C440,950 420,800 400,800 C380,800 360,950 350,1120 C340,1160 310,1160 280,1150 C260,850 280,680 260,550 C240,550 190,680 160,680 C140,650 180,600 160,480 C140,340 160,270 220,250 C280,230 350,200 350,150 C350,110 370,80 400,80 Z',
+  female: 'M400,90 C425,90 440,115 440,150 C440,195 500,225 550,250 C600,270 610,340 600,480 C590,600 630,650 610,680 C585,680 545,560 525,560 C515,690 535,850 515,1140 C490,1150 465,1150 455,1110 C440,950 420,810 400,810 C380,810 360,950 345,1110 C335,1150 310,1150 285,1140 C265,850 285,690 275,560 C255,560 215,680 190,680 C170,650 210,600 200,480 C190,340 200,270 250,250 C300,225 360,195 360,150 C360,115 375,90 400,90 Z'
+};
+
+/* =========================================================
+   RELATIONAL DATA MODEL — 18 acupoints (14 front + 4 back)
+   ========================================================= */
+const ZONES = [
+  { id:'crown', view:'front', name:'Crown Point', side:'Midline · Vertex', x:400, y:55, r:12,
+    tcm:{ meridian:'Governing Vessel (Dū Mài)', element:'— (Sea of Yang)', points:['GV 20 · Bǎihuì'], indication:'Rising Yang / mental clarity signature', emotion:'Mental fog, disconnection from purpose' },
+    ak:{ muscle:'Frontalis / cranial suture reflex', organ:'Pituitary–Pineal axis', reflex_zone:'Vertex, sagittal/coronal suture intersection', triad:'Mental / Emotional' },
+    synthesis:'The crown is read as the meeting point of all yang channels — a reflective "master switch" for mental clarity — paired here with a cranial reflex tied to hormonal-axis regulation.',
+    remedy:{ modality:'Crown Grounding Hold', steps:['Sit tall and place fingertips lightly on the very top of the head.','Apply gentle, sustained downward pressure for 20–30 seconds.','Slowly circle the fingertips in a coin-sized area.','Finish with three slow breaths, releasing tension downward.'], img:'https://images.unsplash.com/photo-1506126613408-eca07ce68773?q=80&w=600&auto=format&fit=crop' } },
+
+  { id:'l_shoulder', view:'front', name:'Shoulder Point', side:'Left · Deltoid', x:340, y:275, r:10,
+    tcm:{ meridian:'Large Intestine (Dàcháng)', element:'Metal', points:['LI 15 · Jiānyú'], indication:'Metal-element stagnation at the shoulder girdle', emotion:'Difficulty letting go, unprocessed guilt' },
+    ak:{ muscle:'Deltoid (anterior & middle fibers)', organ:'Large Intestine', reflex_zone:'Lateral shoulder, deltoid insertion', triad:'Structural — shoulder mobility' },
+    synthesis:'A classic Metal-element field: Large Intestine energy paired with the deltoid\'s role in carrying and releasing. Restriction here often echoes a "carrying too much" pattern.',
+    remedy:{ modality:'Shoulder Release Circuit', steps:['Press firmly at the top-outer curve of the shoulder for 20 seconds.','Slowly circle the arm forward 5 times, then backward 5 times.','Finish by shaking the arm loosely for 10 seconds.'], img:'https://images.unsplash.com/photo-1571731956672-f2b94d7dd0cb?q=80&w=600&auto=format&fit=crop' } },
+  { id:'r_shoulder', view:'front', name:'Shoulder Point', side:'Right · Deltoid', x:460, y:275, r:10,
+    tcm:{ meridian:'Large Intestine (Dàcháng)', element:'Metal', points:['LI 15 · Jiānyú'], indication:'Metal-element stagnation at the shoulder girdle', emotion:'Difficulty letting go, unprocessed guilt' },
+    ak:{ muscle:'Deltoid (anterior & middle fibers)', organ:'Large Intestine', reflex_zone:'Lateral shoulder, deltoid insertion', triad:'Structural — shoulder mobility' },
+    synthesis:'Mirrors the left shoulder field. Bilateral tenderness reads as a broader "carrying too much" pattern rather than a one-sided mechanical issue.',
+    remedy:{ modality:'Shoulder Release Circuit', steps:['Press firmly at the top-outer curve of the shoulder for 20 seconds.','Slowly circle the arm forward 5 times, then backward 5 times.','Finish by shaking the arm loosely for 10 seconds.'], img:'https://images.unsplash.com/photo-1571731956672-f2b94d7dd0cb?q=80&w=600&auto=format&fit=crop' } },
+
+  { id:'upper_abdomen', view:'front', name:'Upper Dantian Point', side:'Midline · Below sternum', x:400, y:390, r:12,
+    tcm:{ meridian:'Conception Vessel (Rèn Mài)', element:'Earth', points:['CV 12 · Zhōngwǎn'], indication:'Stomach Qi rebellion / digestive tension signature', emotion:'Worry, overthinking' },
+    ak:{ muscle:'Rectus Abdominis — upper fibers', organ:'Stomach', reflex_zone:'Upper abdomen, midline below the xiphoid', triad:'Chemical — digestive overhead' },
+    synthesis:'Earth-element worry meets digestive muscular tension just below the sternum — a convergence point for stress-linked digestive discomfort.',
+    remedy:{ modality:'Upper Digestive Release', steps:['Apply gentle clockwise circular pressure over the upper abdomen for 30 seconds.','Hold static pressure just below the breastbone tip for 20 seconds.','Finish with three slow belly breaths.'], img:'https://images.unsplash.com/photo-1518611012118-696072aa579a?q=80&w=600&auto=format&fit=crop' } },
+
+  { id:'mid_abdomen', view:'front', name:'Navel Point', side:'Midline · Navel', x:400, y:460, r:14,
+    tcm:{ meridian:'Conception Vessel (Rèn Mài)', element:'Water (Original Qi)', points:['CV 8 · Shénquè'], indication:'Original Qi reservoir / core stability signature', emotion:'Separation anxiety, core insecurity' },
+    ak:{ muscle:'Transverse Abdominis', organ:'Small Intestine', reflex_zone:'Navel, deep core layer', triad:'Structural — core stability & absorption' },
+    synthesis:'The navel is read as the body\'s original connection point, paired with the deep core muscle and the organ governing nutrient absorption.',
+    remedy:{ modality:'Core Anchor Sequence', steps:['Place a palm flat over the navel.','Draw the navel gently inward on the exhale, hold 5 seconds, release.','Repeat for 8–10 slow cycles.'], img:'https://images.unsplash.com/photo-1573497491208-6b1acb260507?q=80&w=600&auto=format&fit=crop' } },
+
+  { id:'lower_abdomen', view:'front', name:'Lower Dantian Point', side:'Midline · Below navel', x:400, y:590, r:14,
+    tcm:{ meridian:'Conception Vessel (Rèn Mài)', element:'Water', points:['CV 4 · Guānyuán'], indication:'Kidney-Yuan Qi storage / vitality reserve signature', emotion:'Fear, willpower depletion' },
+    ak:{ muscle:'Iliopsoas', organ:'Kidney / Adrenal', reflex_zone:'Lower abdomen, above the pubic bone', triad:'Chemical — adrenal-kidney axis' },
+    synthesis:'The lower Dantian is the body\'s deep reserve tank, paired with the hip flexor most tied to the fight-or-flight adrenal response.',
+    remedy:{ modality:'Lower Reserve Warm-Hold', steps:['Place both palms flat below the navel.','Apply gentle warming pressure — never into discomfort.','Breathe slowly into the lower belly for 10 full cycles.'], img:'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?q=80&w=600&auto=format&fit=crop' } },
+
+  { id:'l_hip', view:'front', name:'Hip Point', side:'Left · Lateral hip', x:300, y:560, r:11,
+    tcm:{ meridian:'Gallbladder (Dǎn)', element:'Wood', points:['GB 30 · Huántiào'], indication:'Wood-element stagnation / decision-making signature', emotion:'Indecision, stuck momentum' },
+    ak:{ muscle:'Gluteus Medius & Minimus', organ:'Liver / Gallbladder', reflex_zone:'Lateral hip, posterior to the greater trochanter', triad:'Structural — gait & hip stability' },
+    synthesis:'A key Wood-element hinge point — Gallbladder energy tied to decisiveness, paired with the hip stabilisers that carry the body forward.',
+    remedy:{ modality:'Hip Hinge Release', steps:['Press firmly on the outer hip, behind the hip bone, for 20–30 seconds.','Shift weight side to side slowly 8 times.','Finish with a gentle standing figure-4 stretch, 20 seconds per side.'], img:'https://images.unsplash.com/photo-1518310952931-b1de897abd40?q=80&w=600&auto=format&fit=crop' } },
+  { id:'r_hip', view:'front', name:'Hip Point', side:'Right · Lateral hip', x:500, y:560, r:11,
+    tcm:{ meridian:'Gallbladder (Dǎn)', element:'Wood', points:['GB 30 · Huántiào'], indication:'Wood-element stagnation / decision-making signature', emotion:'Indecision, stuck momentum' },
+    ak:{ muscle:'Gluteus Medius & Minimus', organ:'Liver / Gallbladder', reflex_zone:'Lateral hip, posterior to the greater trochanter', triad:'Structural — gait & hip stability' },
+    synthesis:'Mirrors the left hip field. Bilateral tenderness reads as a more systemic Wood-element pattern.',
+    remedy:{ modality:'Hip Hinge Release', steps:['Press firmly on the outer hip, behind the hip bone, for 20–30 seconds.','Shift weight side to side slowly 8 times.','Finish with a gentle standing figure-4 stretch, 20 seconds per side.'], img:'https://images.unsplash.com/photo-1518310952931-b1de897abd40?q=80&w=600&auto=format&fit=crop' } },
+
+  { id:'l_palm', view:'front', name:'Palm Point', side:'Left · Center palm', x:155, y:675, r:9,
+    tcm:{ meridian:'Pericardium (Xīnbāo)', element:'Fire (Ministerial)', points:['PC 8 · Láogōng'], indication:'Ministerial Fire / circulation signature', emotion:'Heart-centred stress, guarded boundaries' },
+    ak:{ muscle:'Flexor Digitorum (superficial)', organ:'Heart / Pericardium', reflex_zone:'Center of the palm', triad:'Emotional — heart protector reflex' },
+    synthesis:'The center of the palm is a Fire-element point tied to circulation and the "heart protector" channel — a tight fist-like tension often pairs with guarded emotional boundaries.',
+    remedy:{ modality:'Palm Fire Release', steps:['Press the opposite thumb firmly into the center of the palm for 20–30 seconds.','Open and close the hand into a soft fist 10 times.','Shake both hands loosely for 10 seconds.'], img:'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?q=80&w=600&auto=format&fit=crop' } },
+  { id:'r_palm', view:'front', name:'Palm Point', side:'Right · Center palm', x:645, y:675, r:9,
+    tcm:{ meridian:'Pericardium (Xīnbāo)', element:'Fire (Ministerial)', points:['PC 8 · Láogōng'], indication:'Ministerial Fire / circulation signature', emotion:'Heart-centred stress, guarded boundaries' },
+    ak:{ muscle:'Flexor Digitorum (superficial)', organ:'Heart / Pericardium', reflex_zone:'Center of the palm', triad:'Emotional — heart protector reflex' },
+    synthesis:'Mirrors the left palm field. The dominant hand\'s reading is sometimes weighted more heavily for active, outward-facing stress patterns.',
+    remedy:{ modality:'Palm Fire Release', steps:['Press the opposite thumb firmly into the center of the palm for 20–30 seconds.','Open and close the hand into a soft fist 10 times.','Shake both hands loosely for 10 seconds.'], img:'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?q=80&w=600&auto=format&fit=crop' } },
+
+  { id:'l_knee', view:'front', name:'Knee Point', side:'Left · Below kneecap', x:350, y:900, r:11,
+    tcm:{ meridian:'Stomach (Wèi)', element:'Earth', points:['ST 35 · Dúbí'], indication:'Earth-element weight-bearing signature', emotion:'Forward-momentum anxiety' },
+    ak:{ muscle:'Quadriceps (Vastus group)', organ:'Stomach / Spleen', reflex_zone:'Just below and lateral to the kneecap', triad:'Structural — weight-bearing & forward motion' },
+    synthesis:'The knee is where Earth-element digestive energy meets the body\'s forward motion — tightness here often echoes hesitation about moving forward.',
+    remedy:{ modality:'Knee Stability Release', steps:['Press firmly just below the kneecap for 20 seconds.','Slowly straighten and bend the knee 8 times.','Finish with a gentle quadriceps stretch for 20 seconds.'], img:'https://images.unsplash.com/photo-1594381898411-846e7d193883?q=80&w=600&auto=format&fit=crop' } },
+  { id:'r_knee', view:'front', name:'Knee Point', side:'Right · Below kneecap', x:450, y:900, r:11,
+    tcm:{ meridian:'Stomach (Wèi)', element:'Earth', points:['ST 35 · Dúbí'], indication:'Earth-element weight-bearing signature', emotion:'Forward-momentum anxiety' },
+    ak:{ muscle:'Quadriceps (Vastus group)', organ:'Stomach / Spleen', reflex_zone:'Just below and lateral to the kneecap', triad:'Structural — weight-bearing & forward motion' },
+    synthesis:'Mirrors the left knee field. Bilateral tenderness reads as a broader hesitation pattern rather than a single-joint issue.',
+    remedy:{ modality:'Knee Stability Release', steps:['Press firmly just below the kneecap for 20 seconds.','Slowly straighten and bend the knee 8 times.','Finish with a gentle quadriceps stretch for 20 seconds.'], img:'https://images.unsplash.com/photo-1594381898411-846e7d193883?q=80&w=600&auto=format&fit=crop' } },
+
+  { id:'l_sole', view:'front', name:'Sole Point', side:'Left · Ball of foot', x:330, y:1140, r:10,
+    tcm:{ meridian:'Kidney (Shèn)', element:'Water', points:['KI 1 · Yǒngquán'], indication:'Water-element grounding / root vitality signature', emotion:'Primal fear, ungroundedness' },
+    ak:{ muscle:'Quadratus Plantae / foot arch complex', organ:'Kidney / Bladder', reflex_zone:'Ball of the foot, below the second-third toe web', triad:'Structural — grounding & root stability' },
+    synthesis:'The sole is the Water element\'s deepest point — the body\'s root connection to the ground — paired with the arch muscles that hold a person up.',
+    remedy:{ modality:'Root Grounding Rub', steps:['Cross the ankle over the opposite knee.','Press the thumb firmly into the ball of the foot for 30 seconds, small circles.','Press both bare feet flat into the floor for 20 seconds, breathing slowly.'], img:'https://images.unsplash.com/photo-1519824145371-296894a0daa9?q=80&w=600&auto=format&fit=crop' } },
+  { id:'r_sole', view:'front', name:'Sole Point', side:'Right · Ball of foot', x:470, y:1140, r:10,
+    tcm:{ meridian:'Kidney (Shèn)', element:'Water', points:['KI 1 · Yǒngquán'], indication:'Water-element grounding / root vitality signature', emotion:'Primal fear, ungroundedness' },
+    ak:{ muscle:'Quadratus Plantae / foot arch complex', organ:'Kidney / Bladder', reflex_zone:'Ball of the foot, below the second-third toe web', triad:'Structural — grounding & root stability' },
+    synthesis:'Mirrors the left sole field. Working both sides together is the traditional approach for a full grounding reset.',
+    remedy:{ modality:'Root Grounding Rub', steps:['Cross the ankle over the opposite knee.','Press the thumb firmly into the ball of the foot for 30 seconds, small circles.','Press both bare feet flat into the floor for 20 seconds, breathing slowly.'], img:'https://images.unsplash.com/photo-1519824145371-296894a0daa9?q=80&w=600&auto=format&fit=crop' } },
+
+  { id:'l_thoracic_shu', view:'back', name:'Upper Back-Shu Point', side:'Left · Thoracic paraspinal', x:370, y:320, r:11,
+    tcm:{ meridian:'Bladder (Pángguāng)', element:'Water (channel) / Metal (organ)', points:['BL 13 · Fèishù'], indication:'Lung Back-Shu / respiratory reflex signature', emotion:'Grief carried in the upper back' },
+    ak:{ muscle:'Erector Spinae — thoracic fibers', organ:'Lung', reflex_zone:'Paraspinal, level with the 3rd thoracic vertebra', triad:'Structural — respiratory posture' },
+    synthesis:'Back-Shu points mirror the front-body organ readings from behind. This thoracic point reflects Lung function through the postural muscles that hold the upper back open or collapsed.',
+    remedy:{ modality:'Upper Back Opener', steps:['Have a partner or use a massage ball to press just beside the upper spine.','Hold firm pressure for 20–30 seconds.','Roll the shoulders back and open the chest for 5 slow breaths.'], img:'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?q=80&w=600&auto=format&fit=crop' } },
+  { id:'r_thoracic_shu', view:'back', name:'Upper Back-Shu Point', side:'Right · Thoracic paraspinal', x:430, y:320, r:11,
+    tcm:{ meridian:'Bladder (Pángguāng)', element:'Water (channel) / Metal (organ)', points:['BL 13 · Fèishù'], indication:'Lung Back-Shu / respiratory reflex signature', emotion:'Grief carried in the upper back' },
+    ak:{ muscle:'Erector Spinae — thoracic fibers', organ:'Lung', reflex_zone:'Paraspinal, level with the 3rd thoracic vertebra', triad:'Structural — respiratory posture' },
+    synthesis:'Mirrors the left thoracic field. Bilateral tightness across the upper back is often read as sustained respiratory guarding.',
+    remedy:{ modality:'Upper Back Opener', steps:['Have a partner or use a massage ball to press just beside the upper spine.','Hold firm pressure for 20–30 seconds.','Roll the shoulders back and open the chest for 5 slow breaths.'], img:'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?q=80&w=600&auto=format&fit=crop' } },
+
+  { id:'l_lumbar_shu', view:'back', name:'Lower Back-Shu Point', side:'Left · Lumbar paraspinal', x:360, y:510, r:12,
+    tcm:{ meridian:'Bladder (Pángguāng)', element:'Water', points:['BL 23 · Shènshù'], indication:'Kidney Back-Shu / vitality reserve signature', emotion:'Deep fatigue, chronic fear' },
+    ak:{ muscle:'Erector Spinae — lumbar fibers / Quadratus Lumborum', organ:'Kidney / Adrenal', reflex_zone:'Paraspinal, level with the 2nd lumbar vertebra', triad:'Structural — lower back load bearing' },
+    synthesis:'The lumbar Back-Shu point is the posterior mirror of the lower Dantian — Kidney-Adrenal reserve read through the muscles that support the low back under daily load.',
+    remedy:{ modality:'Lumbar Release Hold', steps:['Lie on the back, knees bent, and place a soft ball beside the spine at belt-line height.','Rest body weight gently onto the ball for 30 seconds per side.','Hug both knees to the chest for a slow count of 10 to finish.'], img:'https://images.unsplash.com/photo-1518310952931-b1de897abd40?q=80&w=600&auto=format&fit=crop' } },
+  { id:'r_lumbar_shu', view:'back', name:'Lower Back-Shu Point', side:'Right · Lumbar paraspinal', x:440, y:510, r:12,
+    tcm:{ meridian:'Bladder (Pángguāng)', element:'Water', points:['BL 23 · Shènshù'], indication:'Kidney Back-Shu / vitality reserve signature', emotion:'Deep fatigue, chronic fear' },
+    ak:{ muscle:'Erector Spinae — lumbar fibers / Quadratus Lumborum', organ:'Kidney / Adrenal', reflex_zone:'Paraspinal, level with the 2nd lumbar vertebra', triad:'Structural — lower back load bearing' },
+    synthesis:'Mirrors the left lumbar field. Bilateral tightness here is generally read as accumulated reserve depletion rather than a single mechanical strain.',
+    remedy:{ modality:'Lumbar Release Hold', steps:['Lie on the back, knees bent, and place a soft ball beside the spine at belt-line height.','Rest body weight gently onto the ball for 30 seconds per side.','Hug both knees to the chest for a slow count of 10 to finish.'], img:'https://images.unsplash.com/photo-1518310952931-b1de897abd40?q=80&w=600&auto=format&fit=crop' } }
+];
+
+/* Region halo groupings — soft background shapes behind clusters of points */
+const REGIONS = [
+  { view:'front', d:'M300,240 Q400,280 500,240 Q480,340 400,350 Q320,340 300,240 Z', zoneIds:['l_shoulder','r_shoulder'] },
+  { view:'front', d:'M320,380 Q400,390 480,380 Q470,560 400,600 Q330,560 320,380 Z', zoneIds:['upper_abdomen','mid_abdomen','lower_abdomen'] },
+  { view:'front', d:'M270,530 C270,530 290,600 400,600 C510,600 530,530 530,530 Z', zoneIds:['l_hip','r_hip'] },
+  { view:'back', d:'M310,240 L490,240 L470,420 L330,420 Z', zoneIds:['l_thoracic_shu','r_thoracic_shu'] },
+  { view:'back', d:'M310,470 A90,45 0 1 0 490,470 A90,45 0 1 0 310,470 Z', zoneIds:['l_lumbar_shu','r_lumbar_shu'] }
+];
+
+/* =========================================================
+   SVG BUILD
+   ========================================================= */
+const svg = document.getElementById('bodySvg');
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs){ const e = document.createElementNS(NS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+
+const defs = el('defs',{});
+// Male palette: teal -> amber -> red
+const tcmMale = el('linearGradient',{id:'tcmLungMeridian', x1:'0%', y1:'0%', x2:'100%', y2:'100%'});
+tcmMale.appendChild(el('stop',{offset:'0%','stop-color':'#14b8a6'}));
+tcmMale.appendChild(el('stop',{offset:'50%','stop-color':'#f59e0b'}));
+tcmMale.appendChild(el('stop',{offset:'100%','stop-color':'#ef4444'}));
+defs.appendChild(tcmMale);
+
+const akMale = el('radialGradient',{id:'akReflexPoint', cx:'50%', cy:'50%', r:'50%'});
+akMale.appendChild(el('stop',{offset:'0%','stop-color':'#000000'}));
+akMale.appendChild(el('stop',{offset:'40%','stop-color':'#ef4444'}));
+akMale.appendChild(el('stop',{offset:'70%','stop-color':'#f59e0b'}));
+akMale.appendChild(el('stop',{offset:'100%','stop-color':'transparent'}));
+defs.appendChild(akMale);
+
+// Female palette: blue -> teal
+const tcmFemale = el('linearGradient',{id:'tcmSpleenMeridian', x1:'100%', y1:'100%', x2:'0%', y2:'0%'});
+tcmFemale.appendChild(el('stop',{offset:'0%','stop-color':'#3b82f6'}));
+tcmFemale.appendChild(el('stop',{offset:'100%','stop-color':'#14b8a6'}));
+defs.appendChild(tcmFemale);
+
+const akFemale = el('radialGradient',{id:'akReflexPointFemale', cx:'50%', cy:'50%', r:'50%'});
+akFemale.appendChild(el('stop',{offset:'0%','stop-color':'#000000'}));
+akFemale.appendChild(el('stop',{offset:'50%','stop-color':'#3b82f6'}));
+akFemale.appendChild(el('stop',{offset:'100%','stop-color':'transparent'}));
+defs.appendChild(akFemale);
+
+svg.appendChild(defs);
+
+let currentView = 'front';
+let currentGender = 'male';
+let selectedId = null;
+
+function buildBody(){
+  svg.innerHTML = '';
+  svg.appendChild(defs);
+
+  const silhouette = el('path', {
+    d: OUTLINE[currentGender], fill:'#121824', stroke:'#1e293b', 'stroke-width':'3'
+  });
+  svg.appendChild(silhouette);
+
+  if(currentView === 'back'){
+    svg.appendChild(el('line',{x1:400, y1:150, x2:400, y2:800, stroke:'#ef4444', 'stroke-width':4, opacity:0.5}));
+  }
+
+  const tcmGrad = currentGender === 'male' ? 'url(#tcmLungMeridian)' : 'url(#tcmSpleenMeridian)';
+  const akGrad = currentGender === 'male' ? 'url(#akReflexPoint)' : 'url(#akReflexPointFemale)';
+  const markerColor = currentGender === 'male' ? '#14b8a6' : '#3b82f6';
+
+  // region halos
+  REGIONS.filter(r=>r.view===currentView).forEach(region=>{
+    const path = el('path',{class:'zone-halo', d:region.d, fill:tcmGrad, opacity:0.28});
+    svg.appendChild(path);
+  });
+
+  // points
+  ZONES.filter(z=>z.view===currentView).forEach(zone=>{
+    const g = el('g',{class:'interactive-zone point', 'data-id':zone.id});
+    const reflex = el('circle',{class:'zone-halo', cx:zone.x, cy:zone.y, r:zone.r*2.4, fill:akGrad, opacity:0.55});
+    const marker = el('circle',{class:'acpoint', cx:zone.x, cy:zone.y, r:zone.r*0.55, fill:markerColor, stroke:'#fff', 'stroke-width':1.5});
+    g.appendChild(reflex);
+    g.appendChild(marker);
+    g.addEventListener('click', ()=> selectZone(zone.id));
+    svg.appendChild(g);
+  });
+
+  document.querySelectorAll('.interactive-zone').forEach(g=>{
+    g.classList.toggle('selected', g.dataset.id === selectedId);
+  });
+}
+buildBody();
+
+/* =========================================================
+   TOGGLES
+   ========================================================= */
+document.getElementById('viewDial').addEventListener('click', e=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#viewDial button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentView = btn.dataset.view;
+  resetSelection();
+  buildBody();
+});
+document.getElementById('genderDial').addEventListener('click', e=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#genderDial button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentGender = btn.dataset.gender;
+  buildBody();
+});
+const canvasWrap = document.getElementById('canvasWrap');
+document.getElementById('modeDial').addEventListener('click', e=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#modeDial button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  canvasWrap.className = 'mode-' + btn.dataset.mode;
+});
+
+/* =========================================================
+   SHEET / SELECTION LOGIC
+   ========================================================= */
+const sheet = document.getElementById('sheet');
+const emptyState = document.getElementById('emptyState');
+const filledState = document.getElementById('filledState');
+const regionName = document.getElementById('regionName');
+const regionSub = document.getElementById('regionSub');
+const hint = document.getElementById('hint');
+
+function selectZone(id){
+  selectedId = id;
+  const zone = ZONES.find(z=>z.id===id);
+  document.querySelectorAll('.interactive-zone').forEach(g=>{
+    g.classList.toggle('selected', g.dataset.id === id);
+  });
+  hint.style.display = 'none';
+  emptyState.style.display = 'none';
+  filledState.style.display = 'flex';
+  sheet.classList.remove('empty');
+  sheet.classList.add('expanded');
+
+  regionName.textContent = zone.name;
+  regionSub.textContent = zone.side;
+
+  renderSynthesis(zone);
+  renderTCM(zone);
+  renderAK(zone);
+  renderRemedy(zone);
+  setTab('synthesis');
+  document.getElementById('sheetBody').scrollTop = 0;
+}
+
+function resetSelection(){
+  selectedId = null;
+  document.querySelectorAll('.interactive-zone').forEach(g=> g.classList.remove('selected'));
+  filledState.style.display = 'none';
+  emptyState.style.display = 'flex';
+  hint.style.display = 'block';
+  sheet.classList.remove('expanded');
+  sheet.classList.add('empty');
+}
+
+function renderSynthesis(zone){
+  document.getElementById('panel-synthesis').innerHTML = `
+    <p class="synth-text">${zone.synthesis}</p>
+    <div class="split">
+      <div class="col east">
+        <h4>Eastern · TCM</h4>
+        <div class="kv"><div class="k">Meridian</div><div class="v">${zone.tcm.meridian}</div></div>
+        <div class="kv"><div class="k">Emotional link</div><div class="v">${zone.tcm.emotion}</div></div>
+      </div>
+      <div class="col west">
+        <h4>Western · AK</h4>
+        <div class="kv"><div class="k">Muscle</div><div class="v">${zone.ak.muscle}</div></div>
+        <div class="kv"><div class="k">Organ link</div><div class="v">${zone.ak.organ}</div></div>
+      </div>
+    </div>
+    <div class="flag-strip">
+      <span>Experiencing crushing, severe, or systemic pain here instead of mild tenderness?</span>
+      <button id="flagBtn">Flag it</button>
+    </div>
+    <div class="return-row"><button class="return-full" id="returnBtnSynth">← Return to Body Map</button></div>
+  `;
+  document.getElementById('flagBtn').onclick = ()=> document.getElementById('emergency').classList.add('show');
+  document.getElementById('returnBtnSynth').onclick = resetSelection;
+}
+function renderTCM(zone){
+  document.getElementById('panel-tcm').innerHTML = `
+    <div class="field-detail">
+      <h4>Meridian Path Mapping</h4>
+      <div class="kv"><div class="k">Meridian</div><div class="v">${zone.tcm.meridian}</div></div>
+      <div class="kv"><div class="k">Element</div><div class="v">${zone.tcm.element}</div></div>
+      <div class="kv"><div class="k">Associated point</div><div class="chip-row">${zone.tcm.points.map(p=>`<span class="chip">${p}</span>`).join('')}</div></div>
+      <div class="kv"><div class="k">Elemental / flow indication</div><div class="v">${zone.tcm.indication}</div></div>
+      <div class="kv"><div class="k">Emotional link</div><div class="v">${zone.tcm.emotion}</div></div>
+    </div>`;
+}
+function renderAK(zone){
+  document.getElementById('panel-ak').innerHTML = `
+    <div class="field-detail west">
+      <h4>Muscle · Organ Reflex Mapping</h4>
+      <div class="kv"><div class="k">Target muscle</div><div class="v">${zone.ak.muscle}</div></div>
+      <div class="kv"><div class="k">Organ reflex</div><div class="v">${zone.ak.organ}</div></div>
+      <div class="kv"><div class="k">Reflex zone</div><div class="v">${zone.ak.reflex_zone}</div></div>
+      <div class="kv"><div class="k">Triad of health focus</div><div class="v">${zone.ak.triad}</div></div>
+    </div>`;
+}
+function renderRemedy(zone){
+  const r = zone.remedy;
+  document.getElementById('panel-remedy').innerHTML = `
+    <div class="remedy-card">
+      <h4>${r.modality}</h4>
+      <div class="remedy-modality">Guided self-massage sequence</div>
+      <div class="video-frame">
+        <img src="${r.img}" alt="" onerror="this.style.display='none'">
+        <div class="play"><div class="play-btn">▶</div></div>
+        <div class="loop-badge">LOOP · MUTED</div>
+        <div class="offline-note" id="offlineNote">OFFLINE · STATIC GUIDE</div>
+      </div>
+      <div class="instructions"><ol>${r.steps.map(s=>`<li>${s}</li>`).join('')}</ol></div>
+    </div>
+    <div class="return-row"><button class="return-full" id="returnBtnRemedy">← Return to Body Map</button></div>
+  `;
+  document.getElementById('returnBtnRemedy').onclick = resetSelection;
+}
+function setTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===name));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active', p.id==='panel-'+name));
+}
+document.getElementById('tabs').addEventListener('click', e=>{
+  const btn = e.target.closest('.tab'); if(!btn) return;
+  setTab(btn.dataset.tab);
+});
+document.getElementById('backBtnTop').addEventListener('click', resetSelection);
+document.getElementById('handleRow').addEventListener('click', ()=>{
+  if(!selectedId) return;
+  sheet.classList.toggle('expanded');
+});
+
+/* =========================================================
+   OFFLINE FALLBACK
+   ========================================================= */
+function applyOfflineState(){
+  const isOffline = !navigator.onLine;
+  document.querySelectorAll('.video-frame img').forEach(img=>{ img.style.filter = isOffline ? 'grayscale(1) brightness(0.6)' : 'none'; });
+  document.querySelectorAll('.offline-note').forEach(n=>{ n.style.display = isOffline ? 'block' : 'none'; });
+  document.querySelectorAll('.loop-badge').forEach(n=>{ n.style.display = isOffline ? 'none' : 'block'; });
+}
+window.addEventListener('online', applyOfflineState);
+window.addEventListener('offline', applyOfflineState);
+applyOfflineState();
+
+/* =========================================================
+   TERMS GATE
+   ========================================================= */
+const agreeBox = document.getElementById('agreeBox');
+const enterBtn = document.getElementById('enterBtn');
+const gate = document.getElementById('gate');
+const hashLine = document.getElementById('hashLine');
+function fakeHash(str){ let h=0; for(let i=0;i<str.length;i++){ h=(h<<5)-h+str.charCodeAt(i); h|=0; } return Math.abs(h).toString(16).padStart(8,'0'); }
+agreeBox.addEventListener('change', ()=>{
+  enterBtn.disabled = !agreeBox.checked;
+  enterBtn.classList.toggle('enabled', agreeBox.checked);
+  hashLine.textContent = agreeBox.checked ? 'verification token: ' + fakeHash('meridian-atlas-' + Date.now()) : 'verification token: pending…';
+});
+enterBtn.addEventListener('click', ()=>{
+  if(enterBtn.disabled) return;
+  gate.style.display = 'none';
+  try{ localStorage.setItem('meridianAtlasConsent', '1'); }catch(e){}
+});
+try{ if(localStorage.getItem('meridianAtlasConsent') === '1'){ gate.style.display = 'none'; } }catch(e){}
+
+/* =========================================================
+   SERVICE WORKER (offline shell)
+   ========================================================= */
+if('serviceWorker' in navigator){
+  const swCode = `
+    const CACHE = 'meridian-atlas-v3';
+    self.addEventListener('install', e=>{ self.skipWaiting(); e.waitUntil(caches.open(CACHE).then(c=>c.addAll(['./']))); });
+    self.addEventListener('activate', e=> self.clients.claim());
+    self.addEventListener('fetch', e=>{
+      e.respondWith(
+        caches.match(e.request).then(cached=> cached || fetch(e.request).then(res=>{
+          const clone = res.clone();
+          caches.open(CACHE).then(c=>c.put(e.request, clone));
+          return res;
+        }).catch(()=> cached))
+      );
+    });
+  `;
+  const blob = new Blob([swCode], {type:'application/javascript'});
+  const swUrl = URL.createObjectURL(blob);
+  window.addEventListener('load', ()=>{ navigator.serviceWorker.register(swUrl).catch(()=>{}); });
+}
+</script>
+</body>
+</html>
